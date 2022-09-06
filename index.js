@@ -2,9 +2,11 @@ const express = require('express')
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const res = require('express/lib/response');
+
 const app = express();
 const { MongoClient, ServerApiVersion,ObjectId } = require('mongodb');
-
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 
@@ -43,8 +45,9 @@ async function run(){
         const orderCollection = client.db('manufacture').collection('order');
         const userCollection = client.db('manufacture').collection('users');
         const reviewCollection = client.db('manufacture').collection('reviews');
+        const paymentCollection = client.db('manufacture').collection('payments');
 
-
+      //all product get api
         app.get('/product', async(req, res) => {
             const query = {};
             const cursor = productCollection.find(query);
@@ -52,6 +55,8 @@ async function run(){
             res.send(products)
 
         });
+
+        //single product get api
         app.get('/product/:id', async(req, res) => {
             const id = req.params.id;
             const query = {_id: ObjectId(id)};
@@ -59,6 +64,37 @@ async function run(){
             res.send(products);
 
         });
+
+        //product add api 
+        app.post('/product', async(req, res) => {
+          const newProduct = req.body;
+          const products = await productCollection.insertOne(newProduct);
+          res.send(products);
+      });
+
+        // product delete api
+        app.delete('/product/:id', async(req, res) => {
+          const id = req.params.id;
+          const query = {_id: ObjectId(id)};
+          const products = await productCollection.deleteOne(query);
+          res.send(products);
+
+      });
+
+      app.post('/create-payment-intent', verifyJWT, async(req, res) => {
+        const order = req.body;
+        const totalPrice = order.totalPrice;
+        const amount = totalPrice*100;
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: 'usd',
+          payment_method_types: ['card']
+        });
+        res.send({clientSecret: paymentIntent.client_secret})
+
+      })
+
+
 
         //Get User api
         app.get('/user', verifyJWT, async(req, res) => {
@@ -109,7 +145,8 @@ async function run(){
 
         })
 
-        // Get Order APi
+       
+        // Get user Order APi
         app.get('/order', verifyJWT, async(req,res) => {
             const email = req.query.email;
             const decodedEmail = req.decoded.email;
@@ -125,13 +162,46 @@ async function run(){
             
         })
         
-
+       
         //Post Order
          app.post('/order', async (req, res) => {
           const order = req.body;
           const result = await orderCollection.insertOne(order);
           res.send(result)
       });
+
+      //order patch
+      app.patch('/order/:id', verifyJWT, async(req, res) => {
+        const id = req.params.id;
+        const payment = req.body;
+        const filter = {_id: ObjectId(id)};
+        const updatedDoc = {
+          $set: {
+            paid: true,
+            transactionId: payment.transactionId
+          }
+        }
+        const result = await paymentCollection.insertOne(payment)
+        const updatedOrder = await orderCollection.updateOne(filter, updatedDoc);
+        res.send(updatedDoc);
+
+
+      })
+     
+      app.get('/order/:id', verifyJWT, async(req, res) => {
+        const id = req.params.id;
+        const query = {_id: ObjectId(id)};
+        const result = await orderCollection.findOne(query);
+        res.send(result);
+      })
+
+      app.get("/allOrders", verifyJWT, async (req, res) => {
+        const query = {};
+        const cursor = orderCollection.find(query);
+        const orders = await cursor.toArray();
+        res.send(orders);
+      });
+   
 
       //delete api
       app.delete('/order/:id', async(req, res) => {
@@ -142,6 +212,8 @@ async function run(){
 
     });
 
+    
+
     //review get api
     app.get('/review', async(req, res) => {
       const query = {};
@@ -149,6 +221,13 @@ async function run(){
       const reviews = await cursor.toArray();
       res.send(reviews);
     })
+
+    //Review post api
+    app.post('/review', async(req, res) => {
+      const newReview = req.body;
+      const result = await reviewCollection.insertOne(newReview);
+      res.send(result);
+  });
 
 
     }
