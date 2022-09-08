@@ -46,6 +46,7 @@ async function run(){
         const userCollection = client.db('manufacture').collection('users');
         const reviewCollection = client.db('manufacture').collection('reviews');
         const paymentCollection = client.db('manufacture').collection('payments');
+        const profileCollection = client.db('manufacture').collection('profile');
 
       //all product get api
         app.get('/product', async(req, res) => {
@@ -102,6 +103,8 @@ async function run(){
           res.send(users);
         });
 
+     
+
       // admin get api
       app.get('/admin/:email', async(req,res) => {
         const email = req.params.email;
@@ -140,7 +143,7 @@ async function run(){
                 $set: user,
             };
           const result = await userCollection.updateOne(filter, updateDoc, options);
-          const token =jwt.sign({email: email}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '1h'});
+          const token =jwt.sign({email: email}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '1d'});
           res.send({result, token});
 
         })
